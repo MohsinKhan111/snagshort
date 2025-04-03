@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SnagShort - YouTube Shorts Downloader</title>
     <link rel="stylesheet" href="css/styles.css">
-    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <meta name="description" content="Download YouTube Shorts videos easily with SnagShort">
     <meta name="theme-color" content="#202124">
 </head>
@@ -15,59 +17,76 @@
             <header>
                 <div class="logo-container">
                     <h1 class="logo">Snag<span class="highlight">Short</span></h1>
-                    <p class="tagline">Download YouTube Shorts in seconds</p>
+                    <p class="tagline">Download YouTube Shorts in High Quality</p>
                 </div>
             </header>
 
             <main>
-                <div class="search-container">
-                    <div class="search-box">
-                        <input type="text" id="url-input" placeholder="Paste YouTube Shorts URL here..." aria-label="YouTube Shorts URL">
-                        <button id="download-btn" aria-label="Download">Download</button>
+                <div class="features">
+                    <div class="feature">
+                        <span class="icon">🎥</span>
+                        <h3>High Quality</h3>
+                        <p>Download videos in the best available quality</p>
                     </div>
-                    <div class="terms-checkbox">
-                        <input type="checkbox" id="terms-agree" required>
-                        <label for="terms-agree">I agree to the <a href="/legal.html">Terms of Service</a> and will only use this tool for personal, non-commercial purposes.</label>
+                    <div class="feature">
+                        <span class="icon">⚡</span>
+                        <h3>Fast & Free</h3>
+                        <p>Quick downloads without any cost</p>
                     </div>
-                    <div id="error-message" class="error-message"></div>
+                    <div class="feature">
+                        <span class="icon">🔒</span>
+                        <h3>Safe & Secure</h3>
+                        <p>No registration or personal data required</p>
+                    </div>
                 </div>
 
-                <div id="result-container" class="result-container hidden">
-                    <div class="video-preview">
-                        <div id="video-placeholder" class="video-placeholder">
-                            <div class="loading-spinner"></div>
+                <div class="search-section">
+                    <form>
+                        <div class="input-group">
+                            <input type="url" 
+                                   placeholder="Paste YouTube Shorts URL here" 
+                                   required 
+                                   pattern="https?:\/\/(www\.)?youtube\.com\/(shorts|reel)\/.*"
+                                   title="Please enter a valid YouTube Shorts URL">
+                            <button type="submit">Download</button>
                         </div>
-                    </div>
-                    <div class="download-options">
-                        <a id="download-link" class="download-button" download>
-                            <span class="button-icon">⬇️</span>
-                            <span class="button-text">Download MP4</span>
-                        </a>
-                    </div>
+                        <div class="terms-checkbox">
+                            <input type="checkbox" id="terms-agree" required>
+                            <label for="terms-agree">
+                                I agree to the <a href="legal.html">Terms of Service</a> and will only use this tool for personal, non-commercial purposes.
+                            </label>
+                        </div>
+                        <div id="error-message" class="error-message"></div>
+                    </form>
+
+                    <div class="video-container"></div>
+                    
+                    <button class="download-btn" style="display: none;">
+                        <span class="icon">⬇️</span>
+                        Download MP4
+                    </button>
                 </div>
             </main>
         </div>
 
         <footer>
-            <p>© 2024 SnagShort - Simple YouTube Shorts Downloader</p>
             <div class="footer-links">
-                <a href="/legal.html" class="footer-link">Terms of Service</a>
-                <a href="/legal.html#privacy" class="footer-link">Privacy Policy</a>
-                <a href="/legal.html#dmca" class="footer-link">DMCA</a>
-                <a href="mailto:legal@snagshort.com" class="footer-link">Contact</a>
+                <a href="legal.html">Terms of Service</a>
+                <a href="#">Privacy Policy</a>
+                <a href="#">DMCA</a>
+                <a href="#">Contact</a>
             </div>
-            <div class="legal-disclaimer">
-                <p>For personal use only. All content remains property of respective owners.</p>
-            </div>
+            <p class="copyright">© 2024 SnagShort - Simple YouTube Shorts Downloader</p>
+            <p class="disclaimer">For personal use only. All content remains property of respective owners.</p>
         </footer>
     </div>
 
     <script src="js/app.js"></script>
     <script>
-        // Register service worker for PWA
+        // Register Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/js/service-worker.js')
+                navigator.serviceWorker.register('js/service-worker.js')
                     .then(registration => {
                         console.log('ServiceWorker registration successful');
                     })

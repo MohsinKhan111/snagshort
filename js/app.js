@@ -1,132 +1,152 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Elements
-    const urlInput = document.getElementById('url-input');
-    const downloadBtn = document.getElementById('download-btn');
-    const errorMessage = document.getElementById('error-message');
-    const resultContainer = document.getElementById('result-container');
-    const videoPlaceholder = document.getElementById('video-placeholder');
-    const downloadLink = document.getElementById('download-link');
+    const form = document.querySelector('form');
+    const input = document.querySelector('input[type="url"]');
+    const videoContainer = document.querySelector('.video-container');
+    const downloadBtn = document.querySelector('.download-btn');
     const termsCheckbox = document.getElementById('terms-agree');
+    const errorMessage = document.getElementById('error-message');
+    
+    // Use production URL when deployed, localhost for development
+    const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:3002'
+        : 'https://snagshort-backend.onrender.com';  // We'll create this later
 
-    // Event Listeners
-    downloadBtn.addEventListener('click', handleDownload);
-    urlInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            handleDownload();
-        }
-    });
+    let currentVideoUrl = '';
 
-    // Functions
-    function handleDownload() {
-        const url = urlInput.value.trim();
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
         
-        // Check terms agreement
         if (!termsCheckbox.checked) {
             showError('Please agree to the Terms of Service before downloading');
             return;
         }
 
-        // Validate URL
-        if (!isValidYouTubeShortsUrl(url)) {
+        const url = input.value.trim();
+        
+        if (!url) {
             showError('Please enter a valid YouTube Shorts URL');
             return;
         }
 
-        // Clear previous error
+        if (!isYouTubeShortsUrl(url)) {
+            showError('Please enter a valid YouTube Shorts URL');
+            return;
+        }
+
         clearError();
-        
-        // Show loading state
-        showLoading();
-        
-        // Process the URL
-        processYouTubeShortsUrl(url);
+
+        try {
+            showMessage('Loading video information...');
+            const response = await fetch(`${API_BASE_URL}/video-info?url=${encodeURIComponent(url)}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to get video information');
+            }
+
+            currentVideoUrl = url;
+            displayVideo(url);
+            downloadBtn.style.display = 'block';
+            
+        } catch (error) {
+            console.error('Error:', error);
+            showError(error.message || 'An error occurred while processing your request');
+        }
+    });
+
+    downloadBtn.addEventListener('click', async () => {
+        if (!currentVideoUrl) {
+            showError('Please enter a video URL first');
+            return;
+        }
+
+        if (!termsCheckbox.checked) {
+            showError('Please agree to the Terms of Service before downloading');
+            return;
+        }
+
+        try {
+            showMessage('Starting download...');
+            window.location.href = `${API_BASE_URL}/download?url=${encodeURIComponent(currentVideoUrl)}`;
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Failed to download video');
+        }
+    });
+
+    function isYouTubeShortsUrl(url) {
+        try {
+            const urlObj = new URL(url);
+            return urlObj.hostname.includes('youtube.com') && 
+                   (urlObj.pathname.includes('/shorts/') || urlObj.pathname.includes('/reel/'));
+        } catch {
+            return false;
+        }
     }
 
-    function isValidYouTubeShortsUrl(url) {
-        // Basic validation for YouTube Shorts URLs
-        const shortsRegex = /^https?:\/\/(www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/;
-        return shortsRegex.test(url);
-    }
-
-    function showError(message) {
-        errorMessage.textContent = message;
-        errorMessage.style.display = 'block';
-        resultContainer.classList.add('hidden');
-    }
-
-    function clearError() {
-        errorMessage.textContent = '';
-        errorMessage.style.display = 'none';
-    }
-
-    function showLoading() {
-        resultContainer.classList.remove('hidden');
-        videoPlaceholder.innerHTML = '<div class="loading-spinner"></div>';
-        downloadLink.style.display = 'none';
-    }
-
-    function processYouTubeShortsUrl(url) {
-        // Extract video ID from URL
+    function displayVideo(url) {
         const videoId = extractVideoId(url);
-        
-        // Display video preview
-        displayVideoPreview(videoId);
-        
-        // Trigger GitHub Actions workflow
-        triggerDownloadWorkflow(url, videoId);
+        if (!videoId) {
+            showError('Invalid YouTube URL');
+            return;
+        }
+
+        const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+        videoContainer.innerHTML = `
+            <iframe
+                width="100%"
+                height="400"
+                src="${embedUrl}"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+            ></iframe>
+        `;
     }
 
     function extractVideoId(url) {
-        const match = url.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
-        return match ? match[1] : null;
-    }
-
-    function displayVideoPreview(videoId) {
-        // Create an iframe for the video preview
-        const iframe = document.createElement('iframe');
-        iframe.src = `https://www.youtube.com/embed/${videoId}`;
-        iframe.width = '100%';
-        iframe.height = '100%';
-        iframe.frameBorder = '0';
-        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-        iframe.allowFullscreen = true;
-        
-        // Replace placeholder with iframe
-        videoPlaceholder.innerHTML = '';
-        videoPlaceholder.appendChild(iframe);
-    }
-
-    function triggerDownloadWorkflow(url, videoId) {
-        // Show a message that the video is being processed
-        const processingMessage = document.createElement('div');
-        processingMessage.className = 'processing-message';
-        processingMessage.textContent = 'Processing video... This may take a minute.';
-        videoPlaceholder.appendChild(processingMessage);
-        
-        // In a real implementation, this would call the GitHub Actions workflow
-        // For now, we'll simulate the process with a timeout
-        setTimeout(() => {
-            // Remove the processing message
-            processingMessage.remove();
-            
-            // Set up download link
-            setupDownloadLink(videoId);
-        }, 3000);
-    }
-
-    function setupDownloadLink(videoId) {
-        // In a real implementation, this would be a link to the processed video
-        downloadLink.href = `#download-${videoId}`;
-        downloadLink.style.display = 'flex';
-        
-        // Add click event to simulate download
-        downloadLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (!termsCheckbox.checked) {
-                showError('Please agree to the Terms of Service before downloading');
-                return;
+        try {
+            const urlObj = new URL(url);
+            if (urlObj.pathname.includes('/shorts/')) {
+                return urlObj.pathname.split('/shorts/')[1];
             }
-            alert('In a real implementation, this would download the video. For now, this is just a placeholder.');
-        });
+            if (urlObj.pathname.includes('/reel/')) {
+                return urlObj.pathname.split('/reel/')[1];
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    }
+
+    function showMessage(message) {
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message';
+        messageElement.textContent = message;
+        
+        const existingMessage = document.querySelector('.message');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+        
+        form.insertAdjacentElement('afterend', messageElement);
+        
+        setTimeout(() => {
+            messageElement.remove();
+        }, 5000);
+    }
+
+    function showError(message) {
+        if (errorMessage) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+    }
+
+    function clearError() {
+        if (errorMessage) {
+            errorMessage.textContent = '';
+            errorMessage.style.display = 'none';
+        }
     }
 }); 
