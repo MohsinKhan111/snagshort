@@ -5,6 +5,7 @@
   "main": "video-info.js",
   "dependencies": {
     "ytdl-core": "^4.11.5",
-    "user-agents": "^1.1.125"
+    "user-agents": "^1.1.125",
+    "node-fetch": "^2.7.0"
   }
 } 
