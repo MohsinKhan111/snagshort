@@ -1,4 +1,13 @@
 {
+  "name": "snagshort",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node api/server.js"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^5.1.0",
