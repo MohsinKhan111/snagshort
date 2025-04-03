@@ -1,0 +1,72 @@
+name: YouTube Shorts Downloader
+
+on:
+  repository_dispatch:
+    types: [download_request]
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        run: npm install ytdl-core
+
+      - name: Process download request
+        id: process
+        run: |
+          # Get the URL from the event payload
+          URL="${{ github.event.client_payload.url }}"
+          
+          # Create a unique filename
+          FILENAME="video-$(date +%s).mp4"
+          
+          # Download the video using ytdl-core
+          node -e "
+            const ytdl = require('ytdl-core');
+            const fs = require('fs');
+            
+            ytdl('$URL', { quality: 'highest' })
+              .pipe(fs.createWriteStream('$FILENAME'))
+              .on('finish', () => {
+                console.log('Download completed');
+              });
+          "
+          
+          # Upload the video as an artifact
+          echo "::set-output name=filename::$FILENAME"
+
+      - name: Upload video
+        uses: actions/upload-artifact@v3
+        with:
+          name: video
+          path: ${{ steps.process.outputs.filename }}
+          retention-days: 1
+
+      - name: Create download URL
+        id: url
+        run: |
+          # Get the artifact ID
+          ARTIFACT_ID=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts" | \
+            jq -r '.artifacts[0].id')
+          
+          # Create a download URL
+          DOWNLOAD_URL="https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip"
+          
+          echo "::set-output name=url::$DOWNLOAD_URL"
+
+      - name: Notify completion
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "{\"state\":\"success\",\"description\":\"Video processed successfully\",\"target_url\":\"${{ steps.url.outputs.url }}\"}" \
+            "${{ github.event.client_payload.callback_url }}" 

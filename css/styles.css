@@ -1,0 +1,323 @@
+/* Global Styles */
+:root {
+    --primary-color: #4285f4;
+    --secondary-color: #34a853;
+    --accent-color: #ea4335;
+    --text-color: #202124;
+    --light-text: #5f6368;
+    --background-color: #ffffff;
+    --card-background: #f8f9fa;
+    --border-color: #dadce0;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --error-color: #d93025;
+    --success-color: #188038;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    font-family: 'Roboto', Arial, sans-serif;
+    color: var(--text-color);
+    background-color: var(--background-color);
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+}
+
+.container {
+    max-width: 800px;
+    width: 100%;
+    min-height: 100vh;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Center content wrapper */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin-bottom: 100px; /* Add some space above footer */
+}
+
+/* Header Styles */
+header {
+    text-align: center;
+}
+
+.logo-container {
+    margin-bottom: 60px;
+}
+
+.logo {
+    font-size: 3.5rem;
+    font-weight: 500;
+    margin-bottom: 0; /* Removed margin between logo and tagline */
+    color: var(--text-color);
+    line-height: 1.2; /* Added to control spacing */
+}
+
+.highlight {
+    color: var(--primary-color);
+}
+
+.tagline {
+    font-size: 1.2rem;
+    color: var(--light-text);
+    margin-top: 5px; /* Small space between logo and tagline */
+}
+
+/* Search Container Styles */
+.search-container {
+    margin-bottom: 30px;
+}
+
+.search-box {
+    display: flex;
+    max-width: 600px;
+    margin: 0 auto;
+    border: 1px solid var(--border-color);
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 1px 6px var(--shadow-color);
+    transition: box-shadow 0.3s ease;
+}
+
+.search-box:focus-within {
+    box-shadow: 0 1px 6px var(--shadow-color), 0 0 0 2px var(--primary-color);
+}
+
+#url-input {
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    outline: none;
+    font-size: 16px;
+    background-color: transparent;
+}
+
+#download-btn {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#download-btn:hover {
+    background-color: #3367d6;
+}
+
+/* Terms Checkbox Styles */
+.terms-checkbox {
+    max-width: 600px;
+    margin: 15px auto 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--light-text);
+}
+
+.terms-checkbox input[type="checkbox"] {
+    margin-top: 4px;
+}
+
+.terms-checkbox a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.terms-checkbox a:hover {
+    text-decoration: underline;
+}
+
+.error-message {
+    color: var(--error-color);
+    text-align: center;
+    margin-top: 10px;
+    min-height: 20px;
+    font-size: 14px;
+}
+
+/* Result Container Styles */
+.result-container {
+    background-color: var(--card-background);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 1px 6px var(--shadow-color);
+}
+
+.hidden {
+    display: none;
+}
+
+.video-preview {
+    margin-bottom: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #000;
+    position: relative;
+    padding-top: 56.25%; /* 16:9 Aspect Ratio */
+}
+
+.video-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f1f1f1;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.download-options {
+    display: flex;
+    justify-content: center;
+}
+
+.download-button {
+    display: flex;
+    align-items: center;
+    background-color: var(--secondary-color);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 24px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.3s ease;
+}
+
+.download-button:hover {
+    background-color: #2d9249;
+}
+
+.button-icon {
+    margin-right: 8px;
+    font-size: 18px;
+}
+
+/* Footer Styles */
+footer {
+    text-align: center;
+    padding: 20px 0;
+    margin-top: auto;
+    color: var(--light-text);
+    font-size: 14px;
+}
+
+.footer-links {
+    margin: 10px 0;
+}
+
+.footer-link {
+    color: var(--light-text);
+    text-decoration: none;
+    margin: 0 10px;
+    transition: color 0.3s ease;
+}
+
+.footer-link:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.legal-disclaimer {
+    margin-top: 15px;
+    font-size: 12px;
+    color: var(--light-text);
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+    
+    .logo {
+        font-size: 2.5rem;
+    }
+    
+    .tagline {
+        font-size: 1rem;
+    }
+    
+    .search-box {
+        flex-direction: column;
+        border-radius: 8px;
+    }
+    
+    #url-input {
+        padding: 12px 15px;
+    }
+    
+    #download-btn {
+        width: 100%;
+        border-radius: 0;
+    }
+
+    .terms-checkbox {
+        padding: 0 15px;
+        text-align: left;
+    }
+
+    .footer-links {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .footer-link {
+        margin: 0;
+    }
+}
+
+/* Dark Theme */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --text-color: #e8eaed;
+        --light-text: #9aa0a6;
+        --background-color: #202124;
+        --card-background: #303134;
+        --border-color: #5f6368;
+        --shadow-color: rgba(0, 0, 0, 0.3);
+    }
+    
+    .video-placeholder {
+        background-color: #303134;
+    }
+    
+    .loading-spinner {
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-top-color: var(--primary-color);
+    }
+} 

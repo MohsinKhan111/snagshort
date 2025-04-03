@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnagShort - YouTube Shorts Downloader</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+    <meta name="description" content="Download YouTube Shorts videos easily with SnagShort">
+    <meta name="theme-color" content="#202124">
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <header>
+                <div class="logo-container">
+                    <h1 class="logo">Snag<span class="highlight">Short</span></h1>
+                    <p class="tagline">Download YouTube Shorts in seconds</p>
+                </div>
+            </header>
+
+            <main>
+                <div class="search-container">
+                    <div class="search-box">
+                        <input type="text" id="url-input" placeholder="Paste YouTube Shorts URL here..." aria-label="YouTube Shorts URL">
+                        <button id="download-btn" aria-label="Download">Download</button>
+                    </div>
+                    <div class="terms-checkbox">
+                        <input type="checkbox" id="terms-agree" required>
+                        <label for="terms-agree">I agree to the <a href="/legal.html">Terms of Service</a> and will only use this tool for personal, non-commercial purposes.</label>
+                    </div>
+                    <div id="error-message" class="error-message"></div>
+                </div>
+
+                <div id="result-container" class="result-container hidden">
+                    <div class="video-preview">
+                        <div id="video-placeholder" class="video-placeholder">
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </div>
+                    <div class="download-options">
+                        <a id="download-link" class="download-button" download>
+                            <span class="button-icon">⬇️</span>
+                            <span class="button-text">Download MP4</span>
+                        </a>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <footer>
+            <p>© 2024 SnagShort - Simple YouTube Shorts Downloader</p>
+            <div class="footer-links">
+                <a href="/legal.html" class="footer-link">Terms of Service</a>
+                <a href="/legal.html#privacy" class="footer-link">Privacy Policy</a>
+                <a href="/legal.html#dmca" class="footer-link">DMCA</a>
+                <a href="mailto:legal@snagshort.com" class="footer-link">Contact</a>
+            </div>
+            <div class="legal-disclaimer">
+                <p>For personal use only. All content remains property of respective owners.</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/js/service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful');
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+    </script>
+</body>
+</html> 
