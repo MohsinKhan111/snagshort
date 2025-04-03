@@ -1,24 +1,37 @@
 {
     "version": 2,
     "builds": [
-        { "src": "api/*.js", "use": "@vercel/node" },
+        { "src": "api/index.js", "use": "@vercel/node" },
+        { "src": "api/video-info.js", "use": "@vercel/node" },
+        { "src": "api/download.js", "use": "@vercel/node" },
+        { "src": "api/health.js", "use": "@vercel/node" },
         { "src": "index.html", "use": "@vercel/static" },
-        { "src": "js/*.js", "use": "@vercel/static" },
-        { "src": "css/*.css", "use": "@vercel/static" },
-        { "src": "assets/**", "use": "@vercel/static" }
+        { "src": "js/**/*.js", "use": "@vercel/static" },
+        { "src": "css/**/*.css", "use": "@vercel/static" }
     ],
     "routes": [
         {
-            "src": "/api/(.*)",
-            "dest": "/api/$1",
-            "headers": {
-                "Access-Control-Allow-Credentials": "true",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET,OPTIONS,POST,PUT,DELETE",
-                "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
-            }
+            "src": "/api/health",
+            "dest": "/api/health"
         },
-        { "src": "/", "dest": "/index.html" },
-        { "src": "/(.+)", "dest": "/$1" }
+        {
+            "src": "/api/video-info",
+            "dest": "/api/video-info"
+        },
+        {
+            "src": "/api/download",
+            "dest": "/api/download"
+        },
+        {
+            "src": "/api/(.*)",
+            "dest": "/api/index"
+        },
+        {
+            "handle": "filesystem"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/index.html"
+        }
     ]
 } 
