@@ -1,0 +1,21 @@
+{
+  "name": "snagshort-backend",
+  "version": "1.0.0",
+  "description": "Backend server for SnagShort YouTube Shorts downloader",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "ytdl-core": "^4.11.5"
+  }
+}
