@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Use production URL when deployed, localhost for development
     const API_BASE_URL = window.location.hostname === 'localhost' 
         ? 'http://localhost:3000/api'
-        : '/api';
+        : 'https://snagshort-mohsins-projects-f763f63e.vercel.app/api';
 
     let currentVideoUrl = '';
 
