@@ -1,10 +1,11 @@
 {
   "name": "snagshort-api",
   "version": "1.0.0",
-  "description": "SnagShort API functions",
-  "main": "video-info.js",
+  "description": "API for SnagShort YouTube Shorts downloader",
+  "main": "index.js",
   "dependencies": {
     "ytdl-core": "^4.11.5",
+    "miniget": "^4.2.3",
     "user-agents": "^1.1.125",
     "node-fetch": "^2.7.0",
     "cors": "^2.8.5"

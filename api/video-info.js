@@ -1,4 +1,5 @@
 const ytdl = require('ytdl-core');
+const miniget = require('miniget');
 
 // Function to extract video ID from various YouTube URL formats
 function extractVideoId(url) {
@@ -22,57 +23,79 @@ function extractVideoId(url) {
     }
 }
 
+async function fetchWithMiniget(url, options) {
+    return new Promise((resolve, reject) => {
+        let data = '';
+        const stream = miniget(url, options);
+        
+        stream.on('data', chunk => {
+            data += chunk;
+        });
+        
+        stream.on('end', () => {
+            try {
+                resolve(JSON.parse(data));
+            } catch (error) {
+                resolve(data);
+            }
+        });
+        
+        stream.on('error', reject);
+    });
+}
+
 async function getVideoInfo(videoId) {
     try {
         console.log('Starting video info fetch for ID:', videoId);
         
-        // Try different user agents if one fails
-        const userAgents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        ];
-
-        let lastError = null;
+        const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
         
-        // Try each user agent
-        for (const userAgent of userAgents) {
-            try {
-                console.log('Attempting with user agent:', userAgent);
-                
-                const options = {
-                    requestOptions: {
-                        headers: {
-                            'User-Agent': userAgent,
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                            'Accept-Language': 'en-US,en;q=0.5',
-                            'Connection': 'keep-alive'
-                        }
-                    }
-                };
-
-                // First try with getBasicInfo
-                try {
-                    console.log('Attempting getBasicInfo...');
-                    const info = await ytdl.getBasicInfo(videoId, options);
-                    console.log('Successfully fetched basic info');
-                    return info;
-                } catch (basicError) {
-                    console.log('getBasicInfo failed, trying getInfo...');
-                    // If basic info fails, try full info
-                    const info = await ytdl.getInfo(videoId, options);
-                    console.log('Successfully fetched full info');
-                    return info;
-                }
-            } catch (error) {
-                console.log('Attempt failed with user agent:', userAgent);
-                lastError = error;
-                continue;
+        // First try to get video info directly from YouTube
+        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        console.log('Fetching from URL:', videoUrl);
+        
+        const options = {
+            headers: {
+                'User-Agent': userAgent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Connection': 'keep-alive'
             }
+        };
+
+        try {
+            // Try direct request first
+            console.log('Attempting direct request...');
+            const html = await fetchWithMiniget(videoUrl, options);
+            
+            // Extract player config from HTML
+            const playerResponseMatch = html.match(/ytInitialPlayerResponse\s*=\s*({.+?})\s*;/);
+            if (playerResponseMatch) {
+                const playerResponse = JSON.parse(playerResponseMatch[1]);
+                console.log('Successfully extracted player response');
+                
+                // Extract streaming data
+                const streamingData = playerResponse.streamingData;
+                if (streamingData) {
+                    const formats = [...(streamingData.formats || []), ...(streamingData.adaptiveFormats || [])];
+                    return {
+                        videoDetails: playerResponse.videoDetails,
+                        formats: formats
+                    };
+                }
+            }
+            
+            console.log('Direct request failed, falling back to ytdl-core...');
+        } catch (directError) {
+            console.log('Direct request failed:', directError.message);
         }
 
-        // If we get here, all attempts failed
-        throw lastError;
+        // Fall back to ytdl-core
+        console.log('Using ytdl-core fallback...');
+        const info = await ytdl.getBasicInfo(videoId, { requestOptions: options });
+        console.log('Successfully fetched info using ytdl-core');
+        return info;
+
     } catch (error) {
         console.error('All attempts failed. Final error:', error.message);
         if (error.stack) {
@@ -146,10 +169,15 @@ module.exports = async (req, res) => {
                 selectedFormats = ytdl.filterFormats(info.formats, 'audioandvideo');
             }
             
+            if (selectedFormats.length === 0 && info.formats) {
+                console.log('Using raw formats...');
+                selectedFormats = info.formats.filter(f => f.url && (f.qualityLabel || f.quality));
+            }
+            
             console.log('Selected formats count:', selectedFormats.length);
         } catch (formatError) {
             console.error('Error filtering formats:', formatError);
-            selectedFormats = info.formats || [];
+            selectedFormats = info.formats ? info.formats.filter(f => f.url) : [];
         }
         
         if (selectedFormats.length === 0) {
@@ -171,7 +199,7 @@ module.exports = async (req, res) => {
         })[0];
 
         console.log('Selected best format:', {
-            quality: format.qualityLabel,
+            quality: format.qualityLabel || format.quality,
             container: format.container,
             hasAudio: format.hasAudio,
             hasVideo: format.hasVideo,
@@ -183,7 +211,7 @@ module.exports = async (req, res) => {
             thumbnail: info.videoDetails.thumbnails[0].url,
             duration: info.videoDetails.lengthSeconds,
             downloadUrl: format.url,
-            quality: format.qualityLabel || `${format.height}p`,
+            quality: format.qualityLabel || format.quality || `${format.height}p`,
             container: format.container,
             isVideoOnly: !format.hasAudio
         };
