@@ -28,6 +28,13 @@ function extractVideoId(url) {
 }
 
 module.exports = async (req, res) => {
+    console.log('Received request:', {
+        method: req.method,
+        url: req.url,
+        query: req.query,
+        headers: req.headers
+    });
+
     // Enable CORS
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -43,17 +50,21 @@ module.exports = async (req, res) => {
     try {
         const { url } = req.query;
         if (!url) {
+            console.log('No URL provided');
             return res.status(400).json({ error: 'Video URL is required' });
         }
 
+        console.log('Processing URL:', url);
         const videoId = extractVideoId(url);
         if (!videoId) {
+            console.log('Invalid video ID for URL:', url);
             return res.status(400).json({ error: 'Invalid YouTube URL' });
         }
 
         // Convert to standard YouTube URL
         const normalizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
         const userAgent = getRandomUserAgent();
+        console.log('Fetching video info with normalized URL:', normalizedUrl);
 
         const info = await ytdl.getInfo(normalizedUrl, {
             requestOptions: {
@@ -66,8 +77,11 @@ module.exports = async (req, res) => {
             }
         });
 
+        console.log('Video info retrieved successfully');
+
         // Get available formats
         const formats = ytdl.filterFormats(info.formats, 'videoandaudio');
+        console.log('Available formats:', formats.length);
         
         // Sort formats by quality (highest first)
         const sortedFormats = formats.sort((a, b) => {
@@ -77,20 +91,39 @@ module.exports = async (req, res) => {
         });
 
         if (sortedFormats.length === 0) {
+            console.log('No suitable formats found');
             throw new Error('No suitable format found');
         }
 
         const format = sortedFormats[0];
+        console.log('Selected format:', {
+            quality: format.quality,
+            height: format.height,
+            container: format.container
+        });
         
-        res.json({
+        const response = {
             title: info.videoDetails.title,
             thumbnail: info.videoDetails.thumbnails[0].url,
             duration: info.videoDetails.lengthSeconds,
             downloadUrl: format.url,
             quality: `${format.height}p`
+        };
+
+        console.log('Sending response:', {
+            title: response.title,
+            quality: response.quality,
+            duration: response.duration
         });
+
+        res.json(response);
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Detailed error:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        
         res.status(500).json({ 
             error: error.message || 'Failed to get video info',
             details: process.env.NODE_ENV === 'development' ? error.stack : undefined
