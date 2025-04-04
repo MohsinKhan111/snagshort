@@ -11,6 +11,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ? 'http://localhost:3000/api'
         : `${window.location.protocol}//${window.location.host}/api`;
 
+    console.log('API Base URL:', API_BASE_URL);
+    console.log('Current hostname:', window.location.hostname);
+    console.log('Current protocol:', window.location.protocol);
+    console.log('Current host:', window.location.host);
+
     let currentVideoUrl = '';
 
     form.addEventListener('submit', async (e) => {
@@ -37,16 +42,33 @@ document.addEventListener('DOMContentLoaded', () => {
         showMessage('Processing your request...');
 
         try {
-            console.log('Sending request to:', `${API_BASE_URL}/video-info?url=${encodeURIComponent(url)}`);
-            const response = await fetch(`${API_BASE_URL}/video-info?url=${encodeURIComponent(url)}`);
-            console.log('Response status:', response.status);
+            const apiUrl = `${API_BASE_URL}/video-info?url=${encodeURIComponent(url)}`;
+            console.log('Sending request to:', apiUrl);
             
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            console.log('Response status:', response.status);
+            console.log('Response headers:', Object.fromEntries([...response.headers]));
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Error response:', errorText);
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    throw new Error(errorJson.error || errorJson.message || 'Failed to get video information');
+                } catch (e) {
+                    throw new Error(`Server error (${response.status}): ${errorText}`);
+                }
+            }
+
             const data = await response.json();
             console.log('Response data:', data);
-
-            if (!response.ok) {
-                throw new Error(data.error || data.details?.message || 'Failed to get video information');
-            }
 
             currentVideoUrl = url;
             displayVideo(url);
