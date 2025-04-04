@@ -1,15 +1,4 @@
 const ytdl = require('ytdl-core');
-const UserAgent = require('user-agents');
-
-// Function to get a random user agent
-function getRandomUserAgent() {
-    const userAgent = new UserAgent({ 
-        deviceCategory: 'desktop',
-        platform: 'Win32',
-        browser: 'chrome'
-    });
-    return userAgent.toString();
-}
 
 // Function to extract video ID from various YouTube URL formats
 function extractVideoId(url) {
@@ -32,68 +21,33 @@ function extractVideoId(url) {
     }
 }
 
-async function getVideoFormats(videoId, retries = 3) {
-    const userAgent = getRandomUserAgent();
-    const normalizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    
-    console.log('Attempting to fetch video info with:', {
-        url: normalizedUrl,
-        userAgent: userAgent,
-        remainingRetries: retries
-    });
-
+async function getVideoInfo(videoId) {
     try {
-        const info = await ytdl.getBasicInfo(normalizedUrl, {
+        console.log('Fetching video info for ID:', videoId);
+        
+        const options = {
             requestOptions: {
                 headers: {
-                    'User-Agent': userAgent,
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-US,en;q=0.9',
                     'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache'
+                    'Pragma': 'no-cache',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
                 }
             }
-        });
+        };
 
-        // Get formats after basic info
-        const formats = await ytdl.getInfo(normalizedUrl, {
-            requestOptions: {
-                headers: {
-                    'User-Agent': userAgent,
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache'
-                }
-            }
-        });
-
-        return { basicInfo: info, formats };
+        const info = await ytdl.getInfo(videoId, options);
+        console.log('Successfully fetched video info');
+        
+        return info;
     } catch (error) {
-        console.error('Error fetching video info:', {
-            error: error.message,
-            retries: retries,
-            videoId: videoId
-        });
-
-        if (retries > 0) {
-            console.log(`Retrying... ${retries} attempts remaining`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            return getVideoFormats(videoId, retries - 1);
-        }
-
+        console.error('Error in getVideoInfo:', error);
         throw error;
     }
 }
 
 module.exports = async (req, res) => {
-    console.log('Received request:', {
-        method: req.method,
-        url: req.url,
-        query: req.query,
-        headers: req.headers
-    });
-
     // Enable CORS
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -108,110 +62,91 @@ module.exports = async (req, res) => {
 
     try {
         const { url } = req.query;
+        
         if (!url) {
-            console.log('No URL provided');
-            return res.status(400).json({ error: 'Video URL is required' });
+            return res.status(400).json({ 
+                error: 'Missing URL',
+                message: 'Video URL is required'
+            });
         }
 
-        console.log('Processing URL:', url);
         const videoId = extractVideoId(url);
         if (!videoId) {
-            console.log('Invalid video ID for URL:', url);
-            return res.status(400).json({ error: 'Invalid YouTube URL' });
+            return res.status(400).json({ 
+                error: 'Invalid URL',
+                message: 'Could not extract video ID from URL'
+            });
         }
 
-        console.log('Extracted video ID:', videoId);
-        const { basicInfo, formats } = await getVideoFormats(videoId);
-        console.log('Video info retrieved successfully');
+        console.log('Processing video ID:', videoId);
+        const info = await getVideoInfo(videoId);
 
-        // First try to get formats with both video and audio
-        let selectedFormats = ytdl.filterFormats(formats.formats, 'videoandaudio');
-        let isVideoOnly = false;
-
-        // If no combined formats, try video-only formats
+        // Get available formats
+        const formats = ytdl.filterFormats(info.formats, 'videoandaudio');
+        
+        // If no combined formats available, get video-only formats
+        const selectedFormats = formats.length > 0 ? formats : ytdl.filterFormats(info.formats, 'video');
+        
         if (selectedFormats.length === 0) {
-            selectedFormats = ytdl.filterFormats(formats.formats, 'videoonly');
-            isVideoOnly = true;
-            console.log('Using video-only formats');
+            return res.status(400).json({
+                error: 'No formats available',
+                message: 'Could not find any suitable video formats'
+            });
         }
 
-        // If still no formats, try any available format
-        if (selectedFormats.length === 0) {
-            selectedFormats = formats.formats;
-            console.log('Using any available format');
-        }
-
-        if (selectedFormats.length === 0) {
-            throw new Error('No suitable formats found');
-        }
-
-        // Sort formats by quality (highest first)
-        const sortedFormats = selectedFormats.sort((a, b) => {
-            const qualityA = parseInt(a.height) || 0;
-            const qualityB = parseInt(b.height) || 0;
-            return qualityB - qualityA;
-        });
-
-        const format = sortedFormats[0];
-        console.log('Selected format:', {
-            quality: format.quality,
-            height: format.height,
-            container: format.container,
-            isVideoOnly: isVideoOnly
-        });
+        // Sort by quality and get the best format
+        const format = selectedFormats.sort((a, b) => (b.height || 0) - (a.height || 0))[0];
 
         const response = {
-            title: basicInfo.videoDetails.title,
-            thumbnail: basicInfo.videoDetails.thumbnails[0].url,
-            duration: basicInfo.videoDetails.lengthSeconds,
+            title: info.videoDetails.title,
+            thumbnail: info.videoDetails.thumbnails[0].url,
+            duration: info.videoDetails.lengthSeconds,
             downloadUrl: format.url,
-            quality: `${format.height}p`,
-            isVideoOnly: isVideoOnly,
-            format: format.container
+            quality: format.qualityLabel || `${format.height}p`,
+            container: format.container,
+            isVideoOnly: !format.hasAudio
         };
 
-        console.log('Sending response with format details');
-        res.json(response);
+        console.log('Sending successful response');
+        return res.json(response);
+
     } catch (error) {
-        console.error('Detailed error:', {
-            message: error.message,
-            stack: error.stack,
-            name: error.name
-        });
+        console.error('Error processing request:', error);
 
-        // Check for specific YouTube errors
+        // Handle specific error cases
         if (error.message.includes('age-restricted')) {
-            return res.status(403).json({ 
-                error: 'This video is age-restricted',
-                message: 'Age-restricted videos are not supported'
-            });
-        }
-        
-        if (error.message.includes('private')) {
-            return res.status(403).json({ 
-                error: 'This video is private',
-                message: 'Private videos are not accessible'
+            return res.status(403).json({
+                error: 'Age Restricted',
+                message: 'This video is age-restricted and cannot be accessed'
             });
         }
 
-        if (error.message.includes('copyright')) {
-            return res.status(403).json({ 
-                error: 'This video is not available',
-                message: 'Video might be blocked due to copyright'
+        if (error.message.includes('private')) {
+            return res.status(403).json({
+                error: 'Private Video',
+                message: 'This video is private and cannot be accessed'
+            });
+        }
+
+        if (error.message.includes('copyright') || error.message.includes('removed')) {
+            return res.status(410).json({
+                error: 'Video Unavailable',
+                message: 'This video has been removed or is not available'
             });
         }
 
         if (error.message.includes('status code: 410')) {
             return res.status(410).json({
-                error: 'Video no longer available',
-                message: 'This video has been removed or is no longer accessible'
+                error: 'Resource Gone',
+                message: 'The requested video is no longer available'
             });
         }
 
-        res.status(500).json({ 
-            error: 'Failed to get video info',
-            message: error.message,
-            videoId: extractVideoId(url || '')
+        // Default error response
+        return res.status(500).json({
+            error: 'Server Error',
+            message: 'An error occurred while processing your request',
+            details: error.message
         });
     }
 }; 
