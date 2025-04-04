@@ -4,18 +4,10 @@ const fetch = require('node-fetch');
 function extractVideoId(url) {
     try {
         const urlObj = new URL(url);
-        let videoId = null;
-
         if (urlObj.pathname.includes('/shorts/')) {
-            videoId = urlObj.pathname.split('/shorts/')[1].split('?')[0];
-        } else if (urlObj.pathname.includes('/watch')) {
-            videoId = urlObj.searchParams.get('v');
-        } else if (urlObj.pathname.includes('/v/')) {
-            videoId = urlObj.pathname.split('/v/')[1];
+            return urlObj.pathname.split('/shorts/')[1].split('?')[0];
         }
-
-        console.log('Extracted video ID:', videoId);
-        return videoId;
+        return null;
     } catch (error) {
         console.error('Error extracting video ID:', error);
         return null;
@@ -23,66 +15,49 @@ function extractVideoId(url) {
 }
 
 async function getVideoInfo(videoId) {
-    console.log('Fetching video info for ID:', videoId);
-    
     try {
-        // First, check if video exists using YouTube's oEmbed endpoint
-        const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
-        console.log('Fetching from oEmbed URL:', oembedUrl);
+        // First try to get video metadata using YouTube's Data API alternative
+        const response = await fetch(`https://www.youtube.com/shorts/${videoId}`);
+        const html = await response.text();
         
-        const oembedResponse = await fetch(oembedUrl);
-        console.log('oEmbed response status:', oembedResponse.status);
+        // Extract video title from meta tags
+        const titleMatch = html.match(/<meta name="title" content="([^"]+)"/);
+        const authorMatch = html.match(/<link itemprop="name" content="([^"]+)"/);
         
-        if (!oembedResponse.ok) {
-            const errorText = await oembedResponse.text();
-            console.error('oEmbed error response:', errorText);
+        if (!titleMatch) {
             throw new Error('Video not available');
         }
 
-        const oembedData = await oembedResponse.json();
-        console.log('Successfully fetched oEmbed data');
+        const title = titleMatch[1];
+        const author = authorMatch ? authorMatch[1] : 'Unknown Creator';
         
-        // Use YouTube's image API to get the highest quality thumbnail
+        // Use YouTube's image API to get thumbnails
         const thumbnails = [
             `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
-            `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-            `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-            `https://img.youtube.com/vi/${videoId}/default.jpg`
+            `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
         ];
 
-        const videoInfo = {
-            title: oembedData.title,
-            author: oembedData.author_name,
-            thumbnails: thumbnails,
-            embedUrl: `https://www.youtube.com/embed/${videoId}`,
+        return {
+            title,
+            author,
+            thumbnails,
+            videoId,
             watchUrl: `https://www.youtube.com/watch?v=${videoId}`,
             shortsUrl: `https://www.youtube.com/shorts/${videoId}`
         };
-
-        console.log('Returning video info:', JSON.stringify(videoInfo, null, 2));
-        return videoInfo;
     } catch (error) {
         console.error('Error fetching video info:', error);
-        console.error('Stack trace:', error.stack);
-        throw error;
+        throw new Error('Video not available');
     }
 }
 
 module.exports = async (req, res) => {
-    console.log('Received request:', {
-        method: req.method,
-        url: req.url,
-        query: req.query,
-        headers: req.headers
-    });
-
     // Enable CORS
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PUT,DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
 
-    // Handle OPTIONS request
     if (req.method === 'OPTIONS') {
         res.status(200).end();
         return;
@@ -92,18 +67,21 @@ module.exports = async (req, res) => {
         const { url } = req.query;
         
         if (!url) {
-            console.log('Missing URL parameter');
             return res.status(400).json({ 
                 error: 'Missing URL',
-                message: 'Video URL is required'
+                message: 'Please provide a YouTube Shorts URL'
             });
         }
 
-        console.log('Processing URL:', url);
+        if (!url.includes('youtube.com/shorts/')) {
+            return res.status(400).json({ 
+                error: 'Invalid URL',
+                message: 'Please provide a valid YouTube Shorts URL'
+            });
+        }
+
         const videoId = extractVideoId(url);
-        
         if (!videoId) {
-            console.log('Failed to extract video ID from URL:', url);
             return res.status(400).json({ 
                 error: 'Invalid URL',
                 message: 'Could not extract video ID from URL'
@@ -111,33 +89,22 @@ module.exports = async (req, res) => {
         }
 
         const info = await getVideoInfo(videoId);
-        
-        console.log('Successfully processed request');
         return res.json({
             success: true,
-            videoId: videoId,
-            info: info
+            info
         });
 
     } catch (error) {
-        console.error('Error processing request:', {
-            message: error.message,
-            stack: error.stack
-        });
-
-        if (error.message.includes('Video not available')) {
+        if (error.message === 'Video not available') {
             return res.status(404).json({
                 error: 'Video Not Found',
-                message: 'The requested video does not exist or is not available',
-                videoId: videoId
+                message: 'The video does not exist or is not available'
             });
         }
 
         return res.status(500).json({
             error: 'Server Error',
-            message: 'An error occurred while processing your request',
-            details: error.message,
-            timestamp: new Date().toISOString()
+            message: 'An error occurred while processing your request'
         });
     }
 }; 
