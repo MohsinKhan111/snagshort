@@ -1,5 +1,13 @@
 const ytdl = require('ytdl-core');
 const miniget = require('miniget');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+
+// List of public HTTPS proxies (update these regularly)
+const PROXY_LIST = [
+    'https://proxy.scrapingbee.com:8886',
+    'https://proxy.webshare.io:80',
+    // Add more proxies as needed
+];
 
 // Function to extract video ID from various YouTube URL formats
 function extractVideoId(url) {
@@ -23,25 +31,32 @@ function extractVideoId(url) {
     }
 }
 
-async function fetchWithMiniget(url, options) {
-    return new Promise((resolve, reject) => {
-        let data = '';
-        const stream = miniget(url, options);
-        
-        stream.on('data', chunk => {
-            data += chunk;
-        });
-        
-        stream.on('end', () => {
-            try {
-                resolve(JSON.parse(data));
-            } catch (error) {
-                resolve(data);
+async function fetchWithRetry(url, options, retries = 3) {
+    let lastError;
+    
+    for (let i = 0; i < retries; i++) {
+        try {
+            console.log(`Attempt ${i + 1} of ${retries}`);
+            const response = await fetch(url, options);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
-        });
-        
-        stream.on('error', reject);
-    });
+            
+            const data = await response.text();
+            return data;
+        } catch (error) {
+            console.log(`Attempt ${i + 1} failed:`, error.message);
+            lastError = error;
+            
+            if (i < retries - 1) {
+                // Wait before retrying (exponential backoff)
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+            }
+        }
+    }
+    
+    throw lastError;
 }
 
 async function getVideoInfo(videoId) {
@@ -50,52 +65,73 @@ async function getVideoInfo(videoId) {
         
         const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
         
-        // First try to get video info directly from YouTube
-        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        console.log('Fetching from URL:', videoUrl);
-        
-        const options = {
-            headers: {
-                'User-Agent': userAgent,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Connection': 'keep-alive'
-            }
-        };
-
-        try {
-            // Try direct request first
-            console.log('Attempting direct request...');
-            const html = await fetchWithMiniget(videoUrl, options);
-            
-            // Extract player config from HTML
-            const playerResponseMatch = html.match(/ytInitialPlayerResponse\s*=\s*({.+?})\s*;/);
-            if (playerResponseMatch) {
-                const playerResponse = JSON.parse(playerResponseMatch[1]);
-                console.log('Successfully extracted player response');
+        // Try each proxy in sequence
+        for (const proxy of ['direct', ...PROXY_LIST]) {
+            try {
+                console.log('Trying with proxy:', proxy);
                 
-                // Extract streaming data
-                const streamingData = playerResponse.streamingData;
-                if (streamingData) {
-                    const formats = [...(streamingData.formats || []), ...(streamingData.adaptiveFormats || [])];
+                const options = {
+                    requestOptions: {
+                        headers: {
+                            'User-Agent': userAgent,
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.5',
+                            'Connection': 'keep-alive'
+                        }
+                    }
+                };
+
+                // Add proxy if not using direct connection
+                if (proxy !== 'direct') {
+                    options.requestOptions.agent = new HttpsProxyAgent(proxy);
+                }
+
+                // Try ytdl-core first
+                try {
+                    console.log('Attempting with ytdl-core...');
+                    const info = await ytdl.getInfo(videoId, options);
+                    console.log('Successfully fetched info with ytdl-core');
+                    return info;
+                } catch (ytdlError) {
+                    console.log('ytdl-core attempt failed:', ytdlError.message);
+                    
+                    // If ytdl-core fails, try direct request
+                    console.log('Attempting direct request...');
+                    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                    const html = await fetchWithRetry(videoUrl, {
+                        headers: options.requestOptions.headers,
+                        agent: options.requestOptions.agent
+                    });
+                    
+                    const playerResponseMatch = html.match(/ytInitialPlayerResponse\s*=\s*({.+?})\s*;/);
+                    if (!playerResponseMatch) {
+                        throw new Error('Could not find player response in page');
+                    }
+                    
+                    const playerResponse = JSON.parse(playerResponseMatch[1]);
+                    console.log('Successfully extracted player response');
+                    
+                    if (!playerResponse.streamingData) {
+                        throw new Error('No streaming data found');
+                    }
+                    
+                    const formats = [
+                        ...(playerResponse.streamingData.formats || []),
+                        ...(playerResponse.streamingData.adaptiveFormats || [])
+                    ];
+                    
                     return {
                         videoDetails: playerResponse.videoDetails,
                         formats: formats
                     };
                 }
+            } catch (proxyError) {
+                console.log(`Failed with proxy ${proxy}:`, proxyError.message);
+                continue;
             }
-            
-            console.log('Direct request failed, falling back to ytdl-core...');
-        } catch (directError) {
-            console.log('Direct request failed:', directError.message);
         }
-
-        // Fall back to ytdl-core
-        console.log('Using ytdl-core fallback...');
-        const info = await ytdl.getBasicInfo(videoId, { requestOptions: options });
-        console.log('Successfully fetched info using ytdl-core');
-        return info;
-
+        
+        throw new Error('All proxy attempts failed');
     } catch (error) {
         console.error('All attempts failed. Final error:', error.message);
         if (error.stack) {
@@ -156,28 +192,20 @@ module.exports = async (req, res) => {
         
         // Try different format combinations
         try {
-            console.log('Trying videoandaudio formats...');
-            selectedFormats = ytdl.filterFormats(info.formats, 'videoandaudio');
-            
-            if (selectedFormats.length === 0) {
-                console.log('No videoandaudio formats, trying video only...');
-                selectedFormats = ytdl.filterFormats(info.formats, 'video');
-            }
-            
-            if (selectedFormats.length === 0) {
-                console.log('No video formats, trying audioandvideo...');
-                selectedFormats = ytdl.filterFormats(info.formats, 'audioandvideo');
-            }
-            
-            if (selectedFormats.length === 0 && info.formats) {
-                console.log('Using raw formats...');
-                selectedFormats = info.formats.filter(f => f.url && (f.qualityLabel || f.quality));
+            if (info.formats) {
+                console.log('Processing formats...');
+                selectedFormats = info.formats.filter(f => {
+                    return f.url && (
+                        (f.hasVideo && f.hasAudio) ||  // Combined formats
+                        (f.hasVideo && f.height)       // Video-only formats
+                    );
+                });
             }
             
             console.log('Selected formats count:', selectedFormats.length);
         } catch (formatError) {
             console.error('Error filtering formats:', formatError);
-            selectedFormats = info.formats ? info.formats.filter(f => f.url) : [];
+            selectedFormats = [];
         }
         
         if (selectedFormats.length === 0) {
