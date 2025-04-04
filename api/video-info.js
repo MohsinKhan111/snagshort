@@ -23,16 +23,24 @@ function extractVideoId(url) {
 }
 
 async function getVideoInfo(videoId) {
+    console.log('Fetching video info for ID:', videoId);
+    
     try {
         // First, check if video exists using YouTube's oEmbed endpoint
         const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+        console.log('Fetching from oEmbed URL:', oembedUrl);
+        
         const oembedResponse = await fetch(oembedUrl);
+        console.log('oEmbed response status:', oembedResponse.status);
         
         if (!oembedResponse.ok) {
+            const errorText = await oembedResponse.text();
+            console.error('oEmbed error response:', errorText);
             throw new Error('Video not available');
         }
 
         const oembedData = await oembedResponse.json();
+        console.log('Successfully fetched oEmbed data');
         
         // Use YouTube's image API to get the highest quality thumbnail
         const thumbnails = [
@@ -42,7 +50,7 @@ async function getVideoInfo(videoId) {
             `https://img.youtube.com/vi/${videoId}/default.jpg`
         ];
 
-        return {
+        const videoInfo = {
             title: oembedData.title,
             author: oembedData.author_name,
             thumbnails: thumbnails,
@@ -50,13 +58,24 @@ async function getVideoInfo(videoId) {
             watchUrl: `https://www.youtube.com/watch?v=${videoId}`,
             shortsUrl: `https://www.youtube.com/shorts/${videoId}`
         };
+
+        console.log('Returning video info:', JSON.stringify(videoInfo, null, 2));
+        return videoInfo;
     } catch (error) {
         console.error('Error fetching video info:', error);
+        console.error('Stack trace:', error.stack);
         throw error;
     }
 }
 
 module.exports = async (req, res) => {
+    console.log('Received request:', {
+        method: req.method,
+        url: req.url,
+        query: req.query,
+        headers: req.headers
+    });
+
     // Enable CORS
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -73,15 +92,18 @@ module.exports = async (req, res) => {
         const { url } = req.query;
         
         if (!url) {
+            console.log('Missing URL parameter');
             return res.status(400).json({ 
                 error: 'Missing URL',
                 message: 'Video URL is required'
             });
         }
 
+        console.log('Processing URL:', url);
         const videoId = extractVideoId(url);
         
         if (!videoId) {
+            console.log('Failed to extract video ID from URL:', url);
             return res.status(400).json({ 
                 error: 'Invalid URL',
                 message: 'Could not extract video ID from URL'
@@ -90,6 +112,7 @@ module.exports = async (req, res) => {
 
         const info = await getVideoInfo(videoId);
         
+        console.log('Successfully processed request');
         return res.json({
             success: true,
             videoId: videoId,
@@ -97,7 +120,10 @@ module.exports = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error processing request:', error);
+        console.error('Error processing request:', {
+            message: error.message,
+            stack: error.stack
+        });
 
         if (error.message.includes('Video not available')) {
             return res.status(404).json({
@@ -110,7 +136,8 @@ module.exports = async (req, res) => {
         return res.status(500).json({
             error: 'Server Error',
             message: 'An error occurred while processing your request',
-            details: error.message
+            details: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 }; 

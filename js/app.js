@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://snagshort-pxatdbhvg-mohsins-projects-f763fd3e.vercel.app/api';
+const API_BASE_URL = 'https://snagshort-l9tgggf7i-mohsins-projects-f763fd3e.vercel.app/api';
 
 async function getVideoInfo(url) {
     const response = await fetch(`${API_BASE_URL}/video-info?url=${encodeURIComponent(url)}`);
@@ -9,23 +9,27 @@ async function getVideoInfo(url) {
     return response.json();
 }
 
-async function downloadVideo(videoId) {
-    // Create a hidden iframe to trigger the download
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = `https://www.youtube.com/shorts/${videoId}`;
-    document.body.appendChild(iframe);
-
-    // Remove the iframe after a short delay
-    setTimeout(() => {
-        document.body.removeChild(iframe);
-    }, 2000);
+function showVideoPreview(data, container) {
+    container.innerHTML = `
+        <div class="video-info">
+            <h3>${data.info.title}</h3>
+            <p>By ${data.info.author}</p>
+            <img src="${data.info.thumbnails[0]}" alt="Video thumbnail" onerror="this.src='${data.info.thumbnails[1]}'">
+            <div class="download-options">
+                <a href="${data.info.watchUrl}" target="_blank" rel="noopener noreferrer" class="button">
+                    Watch on YouTube
+                </a>
+                <a href="${data.info.shortsUrl}" target="_blank" rel="noopener noreferrer" class="button">
+                    Open in Shorts
+                </a>
+            </div>
+        </div>
+    `;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.querySelector('form');
     const urlInput = document.querySelector('input[type="text"]');
-    const downloadBtn = document.querySelector('button');
     const errorDiv = document.querySelector('.error');
     const loadingDiv = document.querySelector('.loading');
     const videoPreview = document.querySelector('.video-preview');
@@ -38,26 +42,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!url) return;
 
             try {
+                // Clear previous state
                 errorDiv.style.display = 'none';
                 loadingDiv.style.display = 'block';
                 videoPreview.style.display = 'none';
                 
+                // Validate URL format
+                if (!url.includes('youtube.com/shorts/')) {
+                    throw new Error('Please enter a valid YouTube Shorts URL');
+                }
+
                 const data = await getVideoInfo(url);
                 
                 if (data.success && data.info) {
-                    // Show video preview
-                    videoPreview.innerHTML = `
-                        <h3>${data.info.title}</h3>
-                        <p>By ${data.info.author}</p>
-                        <img src="${data.info.thumbnails[0]}" alt="Video thumbnail">
-                        <div class="download-options">
-                            <button onclick="window.open('${data.info.watchUrl}', '_blank')">Watch on YouTube</button>
-                            <button onclick="downloadVideo('${data.videoId}')">Download</button>
-                        </div>
-                    `;
+                    showVideoPreview(data, videoPreview);
                     videoPreview.style.display = 'block';
+                } else {
+                    throw new Error('Could not fetch video information');
                 }
             } catch (error) {
+                console.error('Error:', error);
                 errorDiv.textContent = error.message;
                 errorDiv.style.display = 'block';
             } finally {
