@@ -16,7 +16,8 @@ module.exports = async (req, res) => {
     }
 
     // Get the path from the URL
-    const path = req.url.split('/')[1];
+    const urlParts = req.url.split('/').filter(part => part);
+    const path = urlParts[urlParts.length - 1]; // Get the last part of the path
 
     try {
         switch (path) {
@@ -27,10 +28,11 @@ module.exports = async (req, res) => {
             case 'health':
                 return res.json({ status: 'ok', message: 'API is working', timestamp: new Date().toISOString() });
             default:
-                return res.status(404).json({ error: 'Not found' });
+                console.log('Path not found:', path, 'URL:', req.url);
+                return res.status(404).json({ error: 'Not found', path: path, url: req.url });
         }
     } catch (error) {
         console.error('API Error:', error);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: 'Internal server error', message: error.message });
     }
 }; 

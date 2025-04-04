@@ -3,8 +3,7 @@
     "builds": [
         { 
             "src": "api/*.js",
-            "use": "@vercel/node",
-            "config": { "runtime": "nodejs18.x" }
+            "use": "@vercel/node"
         },
         { "src": "*.html", "use": "@vercel/static" },
         { "src": "js/**", "use": "@vercel/static" },
@@ -24,23 +23,11 @@
             "dest": "/api/download.js"
         },
         {
-            "src": "/api/(.*)",
-            "dest": "/api/$1.js"
-        },
-        {
             "handle": "filesystem"
         },
         {
             "src": "/(.*)",
-            "dest": "/$1",
-            "continue": true
-        },
-        {
-            "src": "/((?!.*\\.).*)",
             "dest": "/index.html"
         }
-    ],
-    "env": {
-        "NODE_ENV": "production"
-    }
+    ]
 } 
