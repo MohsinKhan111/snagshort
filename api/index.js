@@ -1,38 +1,41 @@
-// Import required modules
+const express = require('express');
+const cors = require('cors');
 const videoInfo = require('./video-info');
-const download = require('./download');
+const app = express();
 
-module.exports = async (req, res) => {
-    // Enable CORS
-    res.setHeader('Access-Control-Allow-Credentials', true);
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PUT,DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+// Enable CORS for all routes
+app.use(cors());
 
-    // Handle OPTIONS request
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
+// Parse JSON bodies
+app.use(express.json());
 
-    // Get the path from the URL
-    const urlParts = req.url.split('/').filter(part => part);
-    const path = urlParts[urlParts.length - 1]; // Get the last part of the path
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', message: 'API is working', timestamp: new Date().toISOString() });
+});
 
+// Video info endpoint
+app.get('/api/video-info', async (req, res) => {
     try {
-        switch (path) {
-            case 'video-info':
-                return await videoInfo(req, res);
-            case 'download':
-                return await download(req, res);
-            case 'health':
-                return res.json({ status: 'ok', message: 'API is working', timestamp: new Date().toISOString() });
-            default:
-                console.log('Path not found:', path, 'URL:', req.url);
-                return res.status(404).json({ error: 'Not found', path: path, url: req.url });
-        }
+        await videoInfo(req, res);
     } catch (error) {
-        console.error('API Error:', error);
-        return res.status(500).json({ error: 'Internal server error', message: error.message });
+        console.error('Error in video-info endpoint:', error);
+        res.status(500).json({ error: 'Internal server error', message: error.message });
     }
-}; 
+});
+
+// Default route
+app.get('*', (req, res) => {
+    res.status(404).json({ error: 'Not found' });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Global error handler:', err);
+    res.status(500).json({ error: 'Internal server error', message: err.message });
+});
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+}); 
