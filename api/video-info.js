@@ -3,7 +3,8 @@ const UserAgent = require('user-agents');
 
 // Function to get a random user agent
 function getRandomUserAgent() {
-    return new UserAgent().toString();
+    const userAgent = new UserAgent({ deviceCategory: 'desktop' });
+    return userAgent.toString();
 }
 
 // Function to extract video ID from various YouTube URL formats
@@ -24,6 +25,48 @@ function extractVideoId(url) {
     } catch (error) {
         console.error('Error extracting video ID:', error);
         return null;
+    }
+}
+
+async function getVideoFormats(videoId, retries = 3) {
+    const userAgent = getRandomUserAgent();
+    const normalizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    
+    console.log('Attempting to fetch video info with:', {
+        url: normalizedUrl,
+        userAgent: userAgent,
+        remainingRetries: retries
+    });
+
+    try {
+        const info = await ytdl.getInfo(normalizedUrl, {
+            requestOptions: {
+                headers: {
+                    'User-Agent': userAgent,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Cookie': '',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            }
+        });
+
+        return info;
+    } catch (error) {
+        console.error('Error fetching video info:', {
+            error: error.message,
+            retries: retries,
+            videoId: videoId
+        });
+
+        if (retries > 0) {
+            console.log(`Retrying... ${retries} attempts remaining`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+            return getVideoFormats(videoId, retries - 1);
+        }
+
+        throw error;
     }
 }
 
@@ -61,39 +104,56 @@ module.exports = async (req, res) => {
             return res.status(400).json({ error: 'Invalid YouTube URL' });
         }
 
-        // Convert to standard YouTube URL
-        const normalizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        const userAgent = getRandomUserAgent();
-        console.log('Fetching video info with normalized URL:', normalizedUrl);
-
-        const info = await ytdl.getInfo(normalizedUrl, {
-            requestOptions: {
-                headers: {
-                    'User-Agent': userAgent,
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Cookie': '' // Empty cookie to avoid age restriction issues
-                }
-            }
-        });
-
+        console.log('Extracted video ID:', videoId);
+        const info = await getVideoFormats(videoId);
         console.log('Video info retrieved successfully');
 
         // Get available formats
         const formats = ytdl.filterFormats(info.formats, 'videoandaudio');
         console.log('Available formats:', formats.length);
         
+        if (formats.length === 0) {
+            // Try getting video-only and audio-only formats
+            const videoFormats = ytdl.filterFormats(info.formats, 'video');
+            console.log('Video-only formats:', videoFormats.length);
+            
+            if (videoFormats.length === 0) {
+                throw new Error('No video formats available');
+            }
+
+            // Sort formats by quality (highest first)
+            const sortedFormats = videoFormats.sort((a, b) => {
+                const qualityA = parseInt(a.height) || 0;
+                const qualityB = parseInt(b.height) || 0;
+                return qualityB - qualityA;
+            });
+
+            const format = sortedFormats[0];
+            console.log('Selected video-only format:', {
+                quality: format.quality,
+                height: format.height,
+                container: format.container
+            });
+
+            const response = {
+                title: info.videoDetails.title,
+                thumbnail: info.videoDetails.thumbnails[0].url,
+                duration: info.videoDetails.lengthSeconds,
+                downloadUrl: format.url,
+                quality: `${format.height}p`,
+                isVideoOnly: true
+            };
+
+            console.log('Sending video-only response');
+            return res.json(response);
+        }
+
         // Sort formats by quality (highest first)
         const sortedFormats = formats.sort((a, b) => {
             const qualityA = parseInt(a.height) || 0;
             const qualityB = parseInt(b.height) || 0;
             return qualityB - qualityA;
         });
-
-        if (sortedFormats.length === 0) {
-            console.log('No suitable formats found');
-            throw new Error('No suitable format found');
-        }
 
         const format = sortedFormats[0];
         console.log('Selected format:', {
@@ -107,15 +167,11 @@ module.exports = async (req, res) => {
             thumbnail: info.videoDetails.thumbnails[0].url,
             duration: info.videoDetails.lengthSeconds,
             downloadUrl: format.url,
-            quality: `${format.height}p`
+            quality: `${format.height}p`,
+            isVideoOnly: false
         };
 
-        console.log('Sending response:', {
-            title: response.title,
-            quality: response.quality,
-            duration: response.duration
-        });
-
+        console.log('Sending response');
         res.json(response);
     } catch (error) {
         console.error('Detailed error:', {
@@ -124,9 +180,31 @@ module.exports = async (req, res) => {
             name: error.name
         });
         
+        // Check for specific YouTube errors
+        if (error.message.includes('age-restricted')) {
+            return res.status(403).json({ 
+                error: 'This video is age-restricted',
+                message: 'Age-restricted videos are not supported'
+            });
+        }
+        
+        if (error.message.includes('private')) {
+            return res.status(403).json({ 
+                error: 'This video is private',
+                message: 'Private videos are not accessible'
+            });
+        }
+
+        if (error.message.includes('copyright')) {
+            return res.status(403).json({ 
+                error: 'This video is not available',
+                message: 'Video might be blocked due to copyright'
+            });
+        }
+
         res.status(500).json({ 
-            error: error.message || 'Failed to get video info',
-            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            error: 'Failed to get video info',
+            message: error.message
         });
     }
 }; 
